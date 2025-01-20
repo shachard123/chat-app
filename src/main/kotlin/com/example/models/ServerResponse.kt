@@ -4,13 +4,25 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 sealed class ServerResponse {
-    @Serializable
-    data class Success(val message: String) : ServerResponse()
+    abstract val responseId: String
 
     @Serializable
-    data class Error(val errorMessage: String) : ServerResponse()
+    data class Success(
+        override val responseId: String,
+        val message: String
+    ) : ServerResponse()
 
     @Serializable
-    data class ChatMessage(val sender: String, val content: String) : ServerResponse()
+    data class Error(
+        override val responseId: String,
+        val errorMessage: String
+    ) : ServerResponse()
+
+    @Serializable
+    data class ChatMessage(
+        override val responseId: String,
+        val sender: String,
+        val content: String
+    ) : ServerResponse()
 
 }
