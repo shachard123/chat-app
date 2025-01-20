@@ -15,6 +15,7 @@ import kotlinx.serialization.encodeToString
 class ChatServer(private val host: String, private val port: Int) {
 
     private val clientManager = ClientManager()
+    private val userManager = UserManager()
 
     fun start() {
         runBlocking {
@@ -95,11 +96,11 @@ class ChatServer(private val host: String, private val port: Int) {
         password: String,
         sendChannel: ByteWriteChannel
     ) {
-        if (clientManager.checkUserExists(username)) {
+        if (userManager.checkUserExists(username)) {
             ServerResponse.Error("Signup failed - user already exists.").sendResponse(sendChannel)
             return
         }
-        clientManager.addUser(username, password)
+        userManager.addUser(username, password)
         ServerResponse.Success("Signup successful.").sendResponse(sendChannel)
     }
 
@@ -108,7 +109,7 @@ class ChatServer(private val host: String, private val port: Int) {
         password: String,
         sendChannel: ByteWriteChannel
     ) {
-        if (clientManager.checkCredentials(username, password)) {
+        if (userManager.checkCredentials(username, password)) {
             clientManager.addClient(username, sendChannel)
             ServerResponse.Success("Login successful.").sendResponse(sendChannel)
             println("number of connected clients: ${clientManager.getClients().size}")
