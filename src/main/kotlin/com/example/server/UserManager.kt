@@ -2,7 +2,7 @@ package com.example.server
 
 import com.example.models.User
 
-class UserManager {
+object UserManager {
 
     private val users = mutableListOf(
         User("shachar5", "myStrongPass123"),

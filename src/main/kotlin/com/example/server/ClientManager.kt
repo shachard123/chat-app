@@ -3,7 +3,7 @@ package com.example.server
 import com.example.models.User
 import io.ktor.utils.io.*
 
-class ClientManager {
+object ClientManager {
     private val connectedClients = mutableMapOf<String, ByteWriteChannel>()
 
     fun addClient(username: String, channel: ByteWriteChannel) {

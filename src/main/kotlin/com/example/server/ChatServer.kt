@@ -14,8 +14,8 @@ import kotlinx.serialization.encodeToString
 
 class ChatServer(private val host: String, private val port: Int) {
 
-    private val clientManager = ClientManager()
-    private val userManager = UserManager()
+//    private val clientManager = ClientManager()
+//    private val userManager = UserManager()
 
     fun start() {
         runBlocking {
@@ -78,7 +78,7 @@ class ChatServer(private val host: String, private val port: Int) {
         } catch (e: Throwable) {
             println("Client of user $username disconnected: ${e.message}")
         } finally {
-            clientManager.removeClient(username ?: "")
+            ClientManager.removeClient(username ?: "")
             socket.close()
 
         }
@@ -96,11 +96,11 @@ class ChatServer(private val host: String, private val port: Int) {
         password: String,
         sendChannel: ByteWriteChannel
     ) {
-        if (userManager.checkUserExists(username)) {
+        if (UserManager.checkUserExists(username)) {
             ServerResponse.Error("Signup failed - user already exists.").sendResponse(sendChannel)
             return
         }
-        userManager.addUser(username, password)
+        UserManager.addUser(username, password)
         ServerResponse.Success("Signup successful.").sendResponse(sendChannel)
     }
 
@@ -109,10 +109,10 @@ class ChatServer(private val host: String, private val port: Int) {
         password: String,
         sendChannel: ByteWriteChannel
     ) {
-        if (userManager.checkCredentials(username, password)) {
-            clientManager.addClient(username, sendChannel)
+        if (UserManager.checkCredentials(username, password)) {
+            ClientManager.addClient(username, sendChannel)
             ServerResponse.Success("Login successful.").sendResponse(sendChannel)
-            println("number of connected clients: ${clientManager.getClients().size}")
+            println("number of connected clients: ${ClientManager.getClients().size}")
         } else {
             ServerResponse.Error("Login failed - invalid credentials.").sendResponse(sendChannel)
         }
@@ -123,7 +123,7 @@ class ChatServer(private val host: String, private val port: Int) {
         if (printInServer) {
             println("${response.sender}: ${response.content}")
         }
-        clientManager.getClients().forEach { entry ->
+        ClientManager.getClients().forEach { entry ->
             if (entry.key != username) {
                 val sendChannel = entry.value
                 response.sendResponse(sendChannel)
