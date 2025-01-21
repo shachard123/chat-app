@@ -30,7 +30,7 @@ class ChatServer(private val host: String, private val port: Int) {
                 println("Accepted $socket")
 
                 // Handle each client in a separate coroutine
-                launch(Dispatchers.IO) {
+                launch() {
                     handleClient(socket)
                 }
 
@@ -89,7 +89,6 @@ class ChatServer(private val host: String, private val port: Int) {
         } finally {
             ClientManager.removeClient(username ?: "")
             socket.close()
-
         }
     }
 

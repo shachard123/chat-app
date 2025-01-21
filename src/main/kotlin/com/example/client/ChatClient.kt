@@ -14,7 +14,7 @@ import kotlin.system.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
 
-class ChatClient(private val host: String, private val port: Int, private val timeout:Long) {
+class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
     private val menuString = """
     ============================================
@@ -34,8 +34,11 @@ class ChatClient(private val host: String, private val port: Int, private val ti
 
     //store responses by request id to be able to match them
     private val pendingResponses = mutableMapOf<String, CompletableDeferred<ServerResponse>>()
+
     //incoming chat messages
     private val incomingChatMessages = Channel<ServerResponse.IncomingChatMessage>()
+
+    private var isLoggedIn = false
 
 
     fun start() {
@@ -47,32 +50,36 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             val sendChannel = socket.openWriteChannel(autoFlush = true)
 
             // Read messages from the server and pass them to the channel
-            processReceivedData(receiveChannel)
+            launch{
+                processReceivedData(receiveChannel)
+            }
 
-            // Show menu repeatedly
-            while (true) {
-                showMenu(sendChannel)
+            // login and show chat
+            launch {
+                while (!isLoggedIn) {
+                    showMenu(sendChannel)
+                }
+
+                enterChat(sendChannel)
             }
         }
     }
 
-    private fun CoroutineScope.processReceivedData(receiveChannel: ByteReadChannel) {
-        launch {
-            while (true) {
-                val responseJson = receiveChannel.readUTF8Line() ?: break
-                val response = Json.decodeFromString<ServerResponse>(responseJson)
+    private suspend fun processReceivedData(receiveChannel: ByteReadChannel) {
+        while (true) {
+            val responseJson = receiveChannel.readUTF8Line() ?: break
+            val response = Json.decodeFromString<ServerResponse>(responseJson)
 
-                when (response) {
-                    is ServerResponse.IncomingChatMessage -> {
-                        //send chat message
-                        incomingChatMessages.send(response)
-                    }
+            when (response) {
+                is ServerResponse.IncomingChatMessage -> {
+                    //send chat message
+                    incomingChatMessages.send(response)
+                }
 
-                    else -> {
-                        //if response to a request, complete the request
-                        pendingResponses[response.responseId]?.complete(response)
-                        pendingResponses.remove(response.responseId)
-                    }
+                else -> {
+                    //if response to a request, complete the request
+                    pendingResponses[response.responseId]?.complete(response)
+                    pendingResponses.remove(response.responseId)
                 }
             }
         }
@@ -81,22 +88,13 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     private suspend fun showMenu(sendChannel: ByteWriteChannel) {
         val option = getInput(menuString)
         when (option) {
-            "${MenuOption.LOGIN.code}" -> {
-                handleLogin(sendChannel)
-            }
+            "${MenuOption.LOGIN.code}" -> handleLogin(sendChannel)
 
-            "${MenuOption.SIGN_UP.code}" -> {
-                handleSignUp(sendChannel)
-            }
+            "${MenuOption.SIGN_UP.code}" -> handleSignUp(sendChannel)
 
-            "${MenuOption.EXIT.code}" -> {
-                println("Exiting Shachar's Chat App. Goodbye!")
-                exitProcess(0)
-            }
+            "${MenuOption.EXIT.code}" -> exitProcess(0)
 
-            else -> {
-                println("Invalid option, please try again.")
-            }
+            else -> println("Invalid option, please try again.")
         }
     }
 
@@ -109,14 +107,14 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         val username = getInput("Please enter your username: ")
         val password = getInput("Please enter your password: ")
         val requestId = generateId()
-        val request = ClientRequest.Login(requestId,username, password)
+        val request = ClientRequest.Login(requestId, username, password)
         val response = request.sendAndAwaitResponse(sendChannel)
 
         try {
             if (response is ServerResponse.Success) {
                 clientUsername = username
+                isLoggedIn = true
                 println(response.message)
-                enterChat(sendChannel)
             } else if (response is ServerResponse.Error) {
                 println(response.errorMessage)
             }
@@ -138,7 +136,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             val username = getInput("Please enter a username: ")
             val password = getInput("Please enter a password: ")
             val requestId = generateId()
-            val request = ClientRequest.SignUp(requestId,username, password)
+            val request = ClientRequest.SignUp(requestId, username, password)
             try {
                 val response = request.sendAndAwaitResponse(sendChannel)
                 if (response is ServerResponse.Success) {
@@ -154,7 +152,6 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    //TODO : Replace enter chat with better implementation
     private suspend fun enterChat(
         sendChannel: ByteWriteChannel
     ) {
@@ -172,7 +169,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                 while (true) {
                     val message = readlnOrNull() ?: continue
                     val requestId = generateId()
-                    val request = ClientRequest.OutgoingChatMessage(requestId,clientUsername, message)
+                    val request = ClientRequest.OutgoingChatMessage(requestId, clientUsername, message)
                     request.send(sendChannel)
                 }
             }
