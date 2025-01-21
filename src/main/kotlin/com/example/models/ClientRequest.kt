@@ -4,12 +4,25 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 sealed class ClientRequest {
-    @Serializable
-    data class Login(val username: String, val password: String) : ClientRequest()
+    abstract val requestId: String
 
     @Serializable
-    data class SignUp(val username: String, val password: String) : ClientRequest()
+    data class Login(
+        override val requestId: String,
+        val username: String, val password: String
+    ) : ClientRequest()
 
     @Serializable
-    data class ChatMessage(val username: String, val content: String) : ClientRequest()
+    data class SignUp(
+        override val requestId: String,
+        val username: String,
+        val password: String
+    ) : ClientRequest()
+
+    @Serializable
+    data class OutgoingChatMessage(
+        override val requestId: String,
+        val username: String,
+        val content: String
+    ) : ClientRequest()
 }
