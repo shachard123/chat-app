@@ -19,7 +19,7 @@ sealed class ServerResponse {
     ) : ServerResponse()
 
     @Serializable
-    data class ChatMessage(
+    data class IncomingChatMessage(
         override val responseId: String,
         val sender: String,
         val content: String

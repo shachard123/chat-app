@@ -20,7 +20,7 @@ sealed class ClientRequest {
     ) : ClientRequest()
 
     @Serializable
-    data class ChatMessage(
+    data class OutgoingChatMessage(
         override val requestId: String,
         val username: String,
         val content: String
