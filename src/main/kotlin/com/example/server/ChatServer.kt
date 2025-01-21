@@ -2,6 +2,7 @@ package com.example.server
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.utils.asFlow
 import com.example.utils.generateId
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -14,11 +15,6 @@ import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
 
 class ChatServer(private val host: String, private val port: Int) {
-
-//    private val clientManager = ClientManager()
-//    private val userManager = UserManager()
-//    private val pendingRequests = mutableMapOf<String, CompletableDeferred<ServerResponse>>()
-
 
     fun start() {
         runBlocking {
@@ -41,20 +37,6 @@ class ChatServer(private val host: String, private val port: Int) {
                 }
 
             }
-        }
-    }
-
-    private suspend fun sendErrorResponsesWithWrongIds(sendChannel: ByteWriteChannel) {
-        while (true) {
-            // Generate a random ID that does not match any request ID
-            val wrongId = generateId()
-            val errorResponse = ServerResponse.Error(wrongId, "This is a mismatched response.")
-
-            // Send the erroneous response
-            errorResponse.sendResponse(sendChannel)
-
-            // Add a small delay to simulate a realistic flow
-            delay(500) // 500 milliseconds
         }
     }
 
@@ -110,13 +92,6 @@ class ChatServer(private val host: String, private val port: Int) {
             ClientManager.removeClient(username ?: "")
             socket.close()
 
-        }
-    }
-
-    private fun ByteReadChannel.asFlow(): Flow<String> = flow {
-        while (!isClosedForRead) {
-            val line = readUTF8Line() ?: break
-            emit(line)
         }
     }
 
