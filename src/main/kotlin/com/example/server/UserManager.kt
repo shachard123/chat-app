@@ -18,7 +18,7 @@ object UserManager {
     }
 
 
-    fun checkCredentials(username: String, attemptedPassword: String): Boolean {
+    fun areCredentialsValid(username: String, attemptedPassword: String): Boolean {
         //check if password of username equals attemptedPassword
         val realPassword = users.find { it.username == username }?.password
         return realPassword == attemptedPassword
