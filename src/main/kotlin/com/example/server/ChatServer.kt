@@ -48,12 +48,12 @@ class ChatServer(private val host: String, private val port: Int) {
 
             // Handle each client in a separate coroutine
             serverScope.launch() {
-                handleClientConnections(socket)
+                handleClientConnection(socket)
             }
         }
     }
 
-    private suspend fun handleClientConnections(socket: Socket) {
+    private suspend fun handleClientConnection(socket: Socket) {
         val receiveChannel = socket.openReadChannel()
         val sendChannel = socket.openWriteChannel(autoFlush = true)
         try {
