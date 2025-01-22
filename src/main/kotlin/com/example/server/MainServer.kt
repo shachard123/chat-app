@@ -7,7 +7,7 @@ import kotlinx.coroutines.*
 fun main() {
     runBlocking {
         val client = ChatServer(Configuration.HOST, Configuration.PORT)
-        client.start()
+        client.startServer()
 
     }
 }

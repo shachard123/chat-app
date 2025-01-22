@@ -16,44 +16,44 @@ class ChatServer(private val host: String, private val port: Int) {
 
     private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    suspend fun start() {
+    suspend fun startServer() {
         val selectorManager = SelectorManager(Dispatchers.IO)
         val serverSocket = aSocket(selectorManager).tcp().bind(host, port)
         println("Server is listening at ${serverSocket.localAddress}")
 
 
         serverScope.launch {
-            handleServerInput()
+            listenForServerConsole()
         }
 
         serverScope.launch {
-            acceptClients(serverSocket)
+            acceptClientConnections(serverSocket)
         }
 
         //makes the server wait for the job to finish
         serverScope.coroutineContext.job.join()
     }
 
-    private suspend fun handleServerInput() {
+    private suspend fun listenForServerConsole() {
         while (serverScope.isActive) {
             val serverInput = readlnOrNull() ?: ""
             broadcastChatMessage(generateId(), "Server", serverInput, false)
         }
     }
 
-    private suspend fun acceptClients(serverSocket: ServerSocket) {
+    private suspend fun acceptClientConnections(serverSocket: ServerSocket) {
         while (serverScope.isActive) {
             val socket = serverSocket.accept()
             println("Accepted ${socket.remoteAddress} connection")
 
             // Handle each client in a separate coroutine
             serverScope.launch() {
-                handleClient(socket)
+                handleClientConnections(socket)
             }
         }
     }
 
-    private suspend fun handleClient(socket: Socket) {
+    private suspend fun handleClientConnections(socket: Socket) {
         val receiveChannel = socket.openReadChannel()
         val sendChannel = socket.openWriteChannel(autoFlush = true)
         try {
@@ -76,7 +76,7 @@ class ChatServer(private val host: String, private val port: Int) {
     ) {
         when (this) {
             is ClientRequest.Login -> {
-                attemptLogin(
+                loginUser(
                     this.requestId,
                     this.username,
                     this.password,
@@ -85,7 +85,7 @@ class ChatServer(private val host: String, private val port: Int) {
             }
 
             is ClientRequest.SignUp -> {
-                attemptSignUp(
+                signUpUser(
                     this.requestId,
                     this.username,
                     this.password,
@@ -104,7 +104,7 @@ class ChatServer(private val host: String, private val port: Int) {
     }
 
 
-    private suspend fun attemptSignUp(
+    private suspend fun signUpUser(
         id: String,
         username: String,
         password: String,
@@ -120,7 +120,7 @@ class ChatServer(private val host: String, private val port: Int) {
         ServerResponse.Success(id, "Signup successful.").sendResponse(sendChannel)
     }
 
-    private suspend fun attemptLogin(
+    private suspend fun loginUser(
         id: String,
         username: String,
         password: String,
@@ -143,6 +143,7 @@ class ChatServer(private val host: String, private val port: Int) {
         message: String,
         printInServer: Boolean = true
     ) {
+
         val response = ServerResponse.IncomingChatMessage(id, username, message)
         if (printInServer) {
             println("${response.sender}: ${response.content}")
