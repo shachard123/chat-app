@@ -61,7 +61,7 @@ class ChatServer(private val host: String, private val port: Int) {
                 .asFlow()
                 .map { Json.decodeFromString<ClientRequest>(it) }
                 .collect { clientRequest ->
-                    handleClientRequest(clientRequest, sendChannel)
+                    clientRequest.handleClientRequest(sendChannel)
 
                 }
         } catch (e: Throwable) {
@@ -71,34 +71,33 @@ class ChatServer(private val host: String, private val port: Int) {
         }
     }
 
-    private suspend fun handleClientRequest(
-        clientRequest: ClientRequest,
+    private suspend fun ClientRequest.handleClientRequest(
         sendChannel: ByteWriteChannel
     ) {
-        when (clientRequest) {
+        when (this) {
             is ClientRequest.Login -> {
                 attemptLogin(
-                    clientRequest.requestId,
-                    clientRequest.username,
-                    clientRequest.password,
+                    this.requestId,
+                    this.username,
+                    this.password,
                     sendChannel
                 )
             }
 
             is ClientRequest.SignUp -> {
                 attemptSignUp(
-                    clientRequest.requestId,
-                    clientRequest.username,
-                    clientRequest.password,
+                    this.requestId,
+                    this.username,
+                    this.password,
                     sendChannel
                 )
             }
 
             is ClientRequest.OutgoingChatMessage -> {
                 broadcastChatMessage(
-                    clientRequest.requestId,
-                    clientRequest.username,
-                    clientRequest.content
+                    this.requestId,
+                    this.username,
+                    this.content
                 )
             }
         }
