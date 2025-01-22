@@ -49,25 +49,28 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         val clientSocket = aSocket(selectorManager).tcp().connect(host, port)
 
         val sendChannel = clientSocket.openWriteChannel(autoFlush = true)
+        val receiveChannel = clientSocket.openReadChannel()
 
         // Read messages from the server and pass them to the channel
         clientScope.launch {
-            listenForServerResponses(clientSocket)
+            listenForServerResponses(receiveChannel)
         }
 
 
         // login and show chat
         clientScope.launch {
-            runMainMenuLoop(clientSocket)
+            runMainMenuLoop(sendChannel)
 
             if(isLoggedIn) {
                 startChatSession(sendChannel)
             }
         }
+
+        // Wait for the client to finish
+        clientScope.coroutineContext.job.join()
     }
 
-    private suspend fun listenForServerResponses(socket: Socket) {
-        val receiveChannel = socket.openReadChannel()
+    private suspend fun listenForServerResponses(receiveChannel : ByteReadChannel) {
         receiveChannel
             .asFlow()
             .map { Json.decodeFromString<ServerResponse>(it) }
@@ -91,8 +94,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    private suspend fun runMainMenuLoop(socket : Socket) {
-        val sendChannel = socket.openWriteChannel(autoFlush = true)
+    private suspend fun runMainMenuLoop(sendChannel : ByteWriteChannel) {
         while (!isLoggedIn && clientScope.isActive) {
             val option = getInput(menuString)
             when (option) {
