@@ -1,9 +1,13 @@
 package com.example.client
 
 import com.example.Configuration
+import kotlinx.coroutines.runBlocking
 
 
-fun main() {
-    val client = ChatClient(Configuration.HOST, Configuration.PORT, Configuration.TIMEOUT)
-    client.start()
+suspend fun main() {
+    runBlocking {
+        val client = ChatClient(Configuration.HOST, Configuration.PORT, Configuration.TIMEOUT)
+        client.startClient()
+    }
+
 }

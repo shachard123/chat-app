@@ -2,6 +2,7 @@ package com.example.client
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.utils.asFlow
 import com.example.utils.generateId
 import com.example.utils.getInput
 import io.ktor.network.selector.*
@@ -9,7 +10,7 @@ import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.flow.map
 import kotlin.system.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
@@ -38,70 +39,80 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     //incoming chat messages
     private val incomingChatMessages = Channel<ServerResponse.IncomingChatMessage>()
 
+    private val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     private var isLoggedIn = false
 
 
-    fun start() {
-        runBlocking {
-            val selectorManager = SelectorManager(Dispatchers.IO)
-            val socket = aSocket(selectorManager).tcp().connect(host, port)
+    suspend fun startClient() {
+        val selectorManager = SelectorManager(Dispatchers.IO)
+        val clientSocket = aSocket(selectorManager).tcp().connect(host, port)
 
-            val receiveChannel = socket.openReadChannel()
-            val sendChannel = socket.openWriteChannel(autoFlush = true)
+        val sendChannel = clientSocket.openWriteChannel(autoFlush = true)
+        val receiveChannel = clientSocket.openReadChannel()
 
-            // Read messages from the server and pass them to the channel
-            launch{
-                processReceivedData(receiveChannel)
+        // Read messages from the server and pass them to the channel
+        clientScope.launch {
+            listenForServerResponses(receiveChannel)
+        }
+
+
+        // login and show chat
+        clientScope.launch {
+            runMainMenuLoop(sendChannel)
+
+            if(isLoggedIn) {
+                startChatSession(sendChannel)
+            }
+        }
+
+        // Wait for the client to finish
+        clientScope.coroutineContext.job.join()
+    }
+
+    private suspend fun listenForServerResponses(receiveChannel : ByteReadChannel) {
+        receiveChannel
+            .asFlow()
+            .map { Json.decodeFromString<ServerResponse>(it) }
+            .collect { serverResponse ->
+                serverResponse.handleServerResponse(receiveChannel)
+            }
+    }
+
+    private suspend fun ServerResponse.handleServerResponse(receiveChannel: ByteReadChannel) {
+        when (this) {
+            is ServerResponse.IncomingChatMessage -> {
+                //send chat message
+                incomingChatMessages.send(this)
             }
 
-            // login and show chat
-            launch {
-                while (!isLoggedIn) {
-                    showMenu(sendChannel)
-                }
-
-                enterChat(sendChannel)
+            else -> {
+                //if response to a request, complete the request
+                pendingResponses[responseId]?.complete(this)
+                pendingResponses.remove(responseId)
             }
         }
     }
 
-    private suspend fun processReceivedData(receiveChannel: ByteReadChannel) {
-        while (true) {
-            val responseJson = receiveChannel.readUTF8Line() ?: break
-            val response = Json.decodeFromString<ServerResponse>(responseJson)
+    private suspend fun runMainMenuLoop(sendChannel : ByteWriteChannel) {
+        while (!isLoggedIn && clientScope.isActive) {
+            val option = getInput(menuString)
+            when (option) {
+                "${MenuOption.LOGIN.code}" -> requestLogin(sendChannel)
 
-            when (response) {
-                is ServerResponse.IncomingChatMessage -> {
-                    //send chat message
-                    incomingChatMessages.send(response)
-                }
+                "${MenuOption.SIGN_UP.code}" -> requestSignUp(sendChannel)
 
-                else -> {
-                    //if response to a request, complete the request
-                    pendingResponses[response.responseId]?.complete(response)
-                    pendingResponses.remove(response.responseId)
-                }
+                "${MenuOption.EXIT.code}" -> exitProcess(0)
+
+                else -> println("Invalid option, please try again.")
             }
-        }
-    }
-
-    private suspend fun showMenu(sendChannel: ByteWriteChannel) {
-        val option = getInput(menuString)
-        when (option) {
-            "${MenuOption.LOGIN.code}" -> handleLogin(sendChannel)
-
-            "${MenuOption.SIGN_UP.code}" -> handleSignUp(sendChannel)
-
-            "${MenuOption.EXIT.code}" -> exitProcess(0)
-
-            else -> println("Invalid option, please try again.")
         }
     }
 
     // asks the user for their username and password,
     // sends a login request to the server,
     // and prints the server's response
-    private suspend fun handleLogin(
+    private suspend fun requestLogin(
         sendChannel: ByteWriteChannel,
     ) {
         val username = getInput("Please enter your username: ")
@@ -126,13 +137,13 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     // asks the user for a new username and password,
     // sends a sign-up request to the server,
     // and prints the server's response
-    private suspend fun handleSignUp(
+    private suspend fun requestSignUp(
         sendChannel: ByteWriteChannel,
     ) {
         var isValidUsername = false
 
         // Loop until a valid username is found
-        while (!isValidUsername) {
+        while (!isValidUsername && clientScope.isActive) {
             val username = getInput("Please enter a username: ")
             val password = getInput("Please enter a password: ")
             val requestId = generateId()
@@ -152,21 +163,21 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    private suspend fun enterChat(
+    private suspend fun startChatSession(
         sendChannel: ByteWriteChannel
     ) {
         coroutineScope {
-            // Print chat messages from the server
+            // receive messages
             launch {
                 println("Welcome to the chat! Type a message and press Enter to send.")
-                while (true) {
+                while (isActive) {
                     val serverMessage = incomingChatMessages.receive()
                     println("${serverMessage.sender}: ${serverMessage.content}")
                 }
             }
-            // Read user input and send chat messages to the server
+            // send messages
             launch(Dispatchers.IO) {
-                while (true) {
+                while (isActive) {
                     val message = readlnOrNull() ?: continue
                     val requestId = generateId()
                     val request = ClientRequest.OutgoingChatMessage(requestId, clientUsername, message)

@@ -14,85 +14,97 @@ import kotlinx.serialization.encodeToString
 
 class ChatServer(private val host: String, private val port: Int) {
 
-    fun start() {
-        runBlocking {
-            val selectorManager = SelectorManager(Dispatchers.IO)
-            val serverSocket = aSocket(selectorManager).tcp().bind(host, port)
-            println("Server is listening at ${serverSocket.localAddress}")
+    private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-            launch(Dispatchers.IO) {
-                handleServerInput()
-            }
+    suspend fun startServer() {
+        val selectorManager = SelectorManager(Dispatchers.IO)
+        val serverSocket = aSocket(selectorManager).tcp().bind(host, port)
+        println("Server is listening at ${serverSocket.localAddress}")
 
-            // Accept clients in the main coroutine
-            while (true) {
-                val socket = serverSocket.accept()
-                println("Accepted $socket")
 
-                // Handle each client in a separate coroutine
-                launch() {
-                    handleClient(socket)
-                }
-
-            }
+        serverScope.launch {
+            listenForServerConsole()
         }
+
+        serverScope.launch {
+            acceptClientConnections(serverSocket)
+        }
+
+        //makes the server wait for the job to finish
+        serverScope.coroutineContext.job.join()
     }
 
-    private suspend fun handleServerInput() {
-        while (true) {
+    private suspend fun listenForServerConsole() {
+        while (serverScope.isActive) {
             val serverInput = readlnOrNull() ?: ""
             broadcastChatMessage(generateId(), "Server", serverInput, false)
         }
     }
 
-    private suspend fun handleClient(socket: Socket) {
+    private suspend fun acceptClientConnections(serverSocket: ServerSocket) {
+        while (serverScope.isActive) {
+            val socket = serverSocket.accept()
+            println("Accepted ${socket.remoteAddress} connection")
+
+            // Handle each client in a separate coroutine
+            serverScope.launch() {
+                handleClientConnection(socket)
+            }
+        }
+    }
+
+    private suspend fun handleClientConnection(socket: Socket) {
         val receiveChannel = socket.openReadChannel()
         val sendChannel = socket.openWriteChannel(autoFlush = true)
-
-        var username: String? = null
-
         try {
             receiveChannel
                 .asFlow()
                 .map { Json.decodeFromString<ClientRequest>(it) }
                 .collect { clientRequest ->
-                    when (clientRequest) {
-                        is ClientRequest.Login -> {
-                            username = clientRequest.username
-                            attemptLogin(
-                                clientRequest.requestId,
-                                clientRequest.username,
-                                clientRequest.password,
-                                sendChannel
-                            )
-                        }
-
-                        is ClientRequest.SignUp -> {
-                            username = clientRequest.username
-                            attemptSignUp(
-                                clientRequest.requestId,
-                                clientRequest.username,
-                                clientRequest.password,
-                                sendChannel
-                            )
-                        }
-
-                        is ClientRequest.OutgoingChatMessage -> {
-                            // username already set up in login/signup
-                            broadcastChatMessage(clientRequest.requestId, clientRequest.username, clientRequest.content)
-                        }
-                    }
+                    clientRequest.handleClientRequest(sendChannel)
 
                 }
         } catch (e: Throwable) {
-            println("Client of user $username disconnected: ${e.message}")
+            println("a client has disconnected")
         } finally {
-            ClientManager.removeClient(username ?: "")
             socket.close()
         }
     }
 
-    private suspend fun attemptSignUp(
+    private suspend fun ClientRequest.handleClientRequest(
+        sendChannel: ByteWriteChannel
+    ) {
+        when (this) {
+            is ClientRequest.Login -> {
+                loginUser(
+                    this.requestId,
+                    this.username,
+                    this.password,
+                    sendChannel
+                )
+            }
+
+            is ClientRequest.SignUp -> {
+                signUpUser(
+                    this.requestId,
+                    this.username,
+                    this.password,
+                    sendChannel
+                )
+            }
+
+            is ClientRequest.OutgoingChatMessage -> {
+                broadcastChatMessage(
+                    this.requestId,
+                    this.username,
+                    this.content
+                )
+            }
+        }
+    }
+
+
+    private suspend fun signUpUser(
         id: String,
         username: String,
         password: String,
@@ -108,7 +120,7 @@ class ChatServer(private val host: String, private val port: Int) {
         ServerResponse.Success(id, "Signup successful.").sendResponse(sendChannel)
     }
 
-    private suspend fun attemptLogin(
+    private suspend fun loginUser(
         id: String,
         username: String,
         password: String,
@@ -131,6 +143,7 @@ class ChatServer(private val host: String, private val port: Int) {
         message: String,
         printInServer: Boolean = true
     ) {
+
         val response = ServerResponse.IncomingChatMessage(id, username, message)
         if (printInServer) {
             println("${response.sender}: ${response.content}")
