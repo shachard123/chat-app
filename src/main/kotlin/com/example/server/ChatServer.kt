@@ -19,8 +19,8 @@ class ChatServer(private val host: String, private val port: Int) {
     suspend fun startServer() {
         val selectorManager = SelectorManager(Dispatchers.IO)
         val serverSocket = aSocket(selectorManager).tcp().bind(host, port)
-        println("Server is listening at ${serverSocket.localAddress}")
 
+        println("Server is listening at ${serverSocket.localAddress}")
 
         serverScope.launch {
             listenForServerConsole()
@@ -93,6 +93,15 @@ class ChatServer(private val host: String, private val port: Int) {
                 )
             }
 
+            is ClientRequest.JoinChatRoom -> {
+                joinRoom(
+                    this.requestId,
+                    this.username,
+                    this.roomName,
+                    sendChannel
+                )
+            }
+
             is ClientRequest.OutgoingChatMessage -> {
                 broadcastChatMessage(
                     this.requestId,
@@ -112,12 +121,12 @@ class ChatServer(private val host: String, private val port: Int) {
     ) {
         // error if user already exists
         if (UserManager.checkUserExists(username)) {
-            ServerResponse.Error(id, "Signup failed - user already exists.").sendResponse(sendChannel)
+            ServerResponse.Error(id, "Signup failed - user already exists.").sendToChannel(sendChannel)
             return
         }
         // add user if user does not exist
         UserManager.addUser(username, password)
-        ServerResponse.Success(id, "Signup successful.").sendResponse(sendChannel)
+        ServerResponse.Success(id, "Signup successful.").sendToChannel(sendChannel)
     }
 
     private suspend fun loginUser(
@@ -128,13 +137,24 @@ class ChatServer(private val host: String, private val port: Int) {
     ) {
         // error if user does not exist
         if (!UserManager.areCredentialsValid(username, password)) {
-            ServerResponse.Error(id, "Login failed - invalid credentials.").sendResponse(sendChannel)
+            ServerResponse.Error(id, "Login failed - invalid credentials.").sendToChannel(sendChannel)
             return
         }
         // add client if user exists
-        ClientManager.addClient(username, sendChannel)
-        ServerResponse.Success(id, "Login successful.").sendResponse(sendChannel)
-        println("number of connected clients: ${ClientManager.getClients().size}")
+        //ClientManager.addClient(username, sendChannel)
+        ServerResponse.Success(id, "Login successful.").sendToChannel(sendChannel)
+        //println("number of connected clients: ${ClientManager.getClients().size}")
+    }
+
+    private suspend fun joinRoom(
+        id: String,
+        username: String,
+        roomName: String,
+        sendChannel: ByteWriteChannel
+    ) {
+        ChatRoomManager.addClientToRoom(roomName, username, sendChannel)
+        ServerResponse.Success(id, "Joined room $roomName.").sendToChannel(sendChannel)
+        println("number of clients in room $roomName: ${ChatRoomManager.getClientsInRoom(roomName)?.size}")
     }
 
     private suspend fun broadcastChatMessage(
@@ -148,16 +168,22 @@ class ChatServer(private val host: String, private val port: Int) {
         if (printInServer) {
             println("${response.sender}: ${response.content}")
         }
-        ClientManager.getClients().forEach { entry ->
+//        ClientManager.getClients().forEach { entry ->
+//            if (entry.key != username) {
+//                val sendChannel = entry.value
+//                response.sendToChannel(sendChannel)
+//            }
+//        }
+        ChatRoomManager.getClientsFromUser(username)?.forEach { entry ->
             if (entry.key != username) {
                 val sendChannel = entry.value
-                response.sendResponse(sendChannel)
+                response.sendToChannel(sendChannel)
             }
         }
     }
 
     // Extension function to send a ServerResponse to a channel
-    private suspend fun ServerResponse.sendResponse(sendChannel: ByteWriteChannel) {
+    private suspend fun ServerResponse.sendToChannel(sendChannel: ByteWriteChannel) {
         sendChannel.writeStringUtf8(Json.encodeToString(this) + "\n")
     }
 }

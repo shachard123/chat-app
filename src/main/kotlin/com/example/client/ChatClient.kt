@@ -17,25 +17,10 @@ import kotlinx.serialization.encodeToString
 
 class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
-    private val menuString = """
-    ============================================
-               Shachar's Chat App
-    ============================================
-    
-    [${MenuOption.LOGIN.code}] Login
-    [${MenuOption.SIGN_UP.code}] Sign Up
-    [${MenuOption.EXIT.code}] Exit
-    
-    ============================================
-    Please select an option:
-    
-    """.trimIndent()
-
     private var clientUsername = ""
 
     //store responses by request id to be able to match them
     private val pendingResponses = mutableMapOf<String, CompletableDeferred<ServerResponse>>()
-
     //incoming chat messages
     private val incomingChatMessages = Channel<ServerResponse.IncomingChatMessage>()
 
@@ -62,8 +47,11 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             runMainMenuLoop(sendChannel)
 
             if(isLoggedIn) {
+                requestJoinChatRoom(sendChannel)
                 startChatSession(sendChannel)
             }
+
+
         }
 
         // Wait for the client to finish
@@ -95,6 +83,20 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     private suspend fun runMainMenuLoop(sendChannel : ByteWriteChannel) {
+        val menuString = """
+        ============================================
+                   Shachar's Chat App
+        ============================================
+        
+        [${MenuOption.LOGIN.code}] Login
+        [${MenuOption.SIGN_UP.code}] Sign Up
+        [${MenuOption.EXIT.code}] Exit
+        
+        ============================================
+        Please select an option:
+        
+        """.trimIndent()
+
         while (!isLoggedIn && clientScope.isActive) {
             val option = getInput(menuString)
             when (option) {
@@ -106,6 +108,27 @@ class ChatClient(private val host: String, private val port: Int, private val ti
 
                 else -> println("Invalid option, please try again.")
             }
+        }
+    }
+
+    private suspend fun requestJoinChatRoom(sendChannel: ByteWriteChannel) {
+        val chatSelectString = """
+        Welcome! Please enter the name of the chat room you would like to join:
+        """.trimIndent()
+
+        val roomName = getInput(chatSelectString)
+        val requestId = generateId()
+        val request = ClientRequest.JoinChatRoom(requestId, clientUsername, roomName)
+        val response = request.sendAndAwaitResponse(sendChannel)
+
+        try {
+            if (response is ServerResponse.Success) {
+                println(response.message)
+            } else if (response is ServerResponse.Error) {
+                println(response.errorMessage)
+            }
+        } catch (e: TimeoutCancellationException) {
+            println("Join chat room failed: Server did not respond in time.")
         }
     }
 
