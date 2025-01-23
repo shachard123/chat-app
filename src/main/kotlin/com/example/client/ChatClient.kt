@@ -2,7 +2,9 @@ package com.example.client
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.server.ChatRoomManager
 import com.example.utils.asFlow
+import com.example.utils.formatChatMessage
 import com.example.utils.generateId
 import com.example.utils.getInput
 import io.ktor.network.selector.*
@@ -25,6 +27,8 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     private val incomingChatMessages = Channel<ServerResponse.IncomingChatMessage>()
 
     private val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    private var sessionToken = ""
 
     private var isLoggedIn = false
 
@@ -132,9 +136,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    // asks the user for their username and password,
-    // sends a login request to the server,
-    // and prints the server's response
+    // send login request to server and handles the response
     private suspend fun requestLogin(
         sendChannel: ByteWriteChannel,
     ) {
@@ -157,9 +159,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    // asks the user for a new username and password,
-    // sends a sign-up request to the server,
-    // and prints the server's response
+    // send signup request to server and handles the response
     private suspend fun requestSignUp(
         sendChannel: ByteWriteChannel,
     ) {
@@ -195,6 +195,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                 println("Welcome to the chat! Type a message and press Enter to send.")
                 while (isActive) {
                     val serverMessage = incomingChatMessages.receive()
+                    val formattedMessage = formatChatMessage(serverMessage.sender, serverMessage.content)
                     println("${serverMessage.sender}: ${serverMessage.content}")
                 }
             }

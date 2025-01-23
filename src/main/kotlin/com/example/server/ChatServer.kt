@@ -3,6 +3,7 @@ package com.example.server
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
 import com.example.utils.asFlow
+import com.example.utils.formatChatMessage
 import com.example.utils.generateId
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -96,7 +97,7 @@ class ChatServer(private val host: String, private val port: Int) {
             is ClientRequest.JoinChatRoom -> {
                 joinRoom(
                     this.requestId,
-                    this.username,
+                    this.sessionId,
                     this.roomName,
                     sendChannel
                 )
@@ -105,7 +106,7 @@ class ChatServer(private val host: String, private val port: Int) {
             is ClientRequest.OutgoingChatMessage -> {
                 broadcastChatMessage(
                     this.requestId,
-                    this.username,
+                    this.sessionId,
                     this.content
                 )
             }
@@ -130,54 +131,71 @@ class ChatServer(private val host: String, private val port: Int) {
     }
 
     private suspend fun loginUser(
-        id: String,
+        requestId: String,
         username: String,
         password: String,
         sendChannel: ByteWriteChannel
     ) {
-        // error if user does not exist
         if (!UserManager.areCredentialsValid(username, password)) {
-            ServerResponse.Error(id, "Login failed - invalid credentials.").sendToChannel(sendChannel)
+            ServerResponse.Error(requestId, "Login failed - invalid credentials.").sendToChannel(sendChannel)
             return
         }
-        // add client if user exists
-        //ClientManager.addClient(username, sendChannel)
-        ServerResponse.Success(id, "Login successful.").sendToChannel(sendChannel)
-        //println("number of connected clients: ${ClientManager.getClients().size}")
+
+        val sessionId = generateId()
+        SessionManager.createSession(sessionId, username, sendChannel)
+        ServerResponse.LoginSuccess(requestId, sessionId,"Login successful.").sendToChannel(sendChannel)
     }
 
     private suspend fun joinRoom(
-        id: String,
-        username: String,
+        requestId: String,
+        sessionId: String,
         roomName: String,
         sendChannel: ByteWriteChannel
     ) {
-        ChatRoomManager.addClientToRoom(roomName, username, sendChannel)
-        ServerResponse.Success(id, "Joined room $roomName.").sendToChannel(sendChannel)
-        println("number of clients in room $roomName: ${ChatRoomManager.getClientsInRoom(roomName)?.size}")
+        val session = SessionManager.getSession(sessionId)
+        if (session == null) {
+            ServerResponse.Error(requestId, "Invalid session.").sendToChannel(sendChannel)
+            return
+        }
+
+        SessionManager.updateRoom(sessionId, roomName)
+        ChatRoomManager.addSessionToRoom(roomName, sessionId)
+
+        ServerResponse.Success(requestId, "Joined room $roomName.").sendToChannel(sendChannel)
     }
 
     private suspend fun broadcastChatMessage(
         id: String,
-        username: String,
+        sessionId: String,
         message: String,
         printInServer: Boolean = true
     ) {
+        val session = SessionManager.getSession(sessionId) ?: return
 
-        val response = ServerResponse.IncomingChatMessage(id, username, message)
+        val username = session.username
+        val roomName = session.currentRoom ?: ""
+
+        val response = ServerResponse.IncomingChatMessage(
+            responseId = id,
+            sender = username,
+            roomName = roomName,
+            content = message
+        )
+
+        // Optionally print on the server console
         if (printInServer) {
-            println("${response.sender}: ${response.content}")
+            println(formatChatMessage(username, roomName, message))
         }
-//        ClientManager.getClients().forEach { entry ->
-//            if (entry.key != username) {
-//                val sendChannel = entry.value
-//                response.sendToChannel(sendChannel)
-//            }
-//        }
-        ChatRoomManager.getClientsFromUser(username)?.forEach { entry ->
-            if (entry.key != username) {
-                val sendChannel = entry.value
-                response.sendToChannel(sendChannel)
+
+        val sessionsInRoom = ChatRoomManager.getSessionsInRoom(roomName)
+
+        // Send the message to each session except the sender
+        sessionsInRoom.forEach { otherSessionId ->
+            if (otherSessionId != sessionId) {
+                val otherSession = SessionManager.getSession(otherSessionId)
+                otherSession?.let {
+                    response.sendToChannel(it.sendChannel)
+                }
             }
         }
     }

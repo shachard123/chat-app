@@ -6,6 +6,14 @@ import kotlinx.serialization.Serializable
 sealed class ServerResponse {
     abstract val responseId: String
 
+
+    @Serializable
+    data class LoginSuccess(
+        override val responseId: String,
+        val sessionId: String,
+        val message: String
+    ) : ServerResponse()
+
     @Serializable
     data class Success(
         override val responseId: String,
@@ -22,6 +30,7 @@ sealed class ServerResponse {
     data class IncomingChatMessage(
         override val responseId: String,
         val sender: String,
+        val roomName: String,
         val content: String
     ) : ServerResponse()
 

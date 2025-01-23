@@ -1,45 +1,24 @@
 package com.example.server
 
+import com.example.models.ServerResponse
 import io.ktor.utils.io.*
 
 object ChatRoomManager {
-    //key - room name | value - username and client map
-    private val rooms = mutableMapOf<String, MutableMap<String, ByteWriteChannel>>()
+    // roomName -> set of session IDs
+    private val rooms = mutableMapOf<String, MutableSet<String>>()
 
-    fun addClientToRoom(roomName: String, username: String, channel: ByteWriteChannel) {
-        if (rooms[roomName] == null) {
-            createRoom(roomName)
-        }
-        rooms[roomName]?.put(username, channel)
+    fun addSessionToRoom(roomName: String, sessionId: String) {
+        rooms.computeIfAbsent(roomName) { mutableSetOf() }.add(sessionId)
     }
 
-    fun removeClientFromRoom(roomName: String, username: String) {
-        rooms[roomName]?.remove(username)
-        if (rooms[roomName]?.isEmpty() == true) {
-            deleteRoom(roomName)
+    fun removeSessionFromRoom(roomName: String, sessionId: String) {
+        rooms[roomName]?.remove(sessionId)
+        if (rooms[roomName].isNullOrEmpty()) {
+            rooms.remove(roomName)
         }
     }
 
-    fun getClientsInRoom(roomName: String): Map<String, ByteWriteChannel>? {
-        return rooms[roomName]
+    fun getSessionsInRoom(roomName: String): Set<String> {
+        return rooms[roomName] ?: emptySet()
     }
-
-    fun getClientsFromUser(username: String):MutableMap<String, ByteWriteChannel>?{
-        for (room in rooms){
-            if (room.value.containsKey(username)){
-                return room.value
-            }
-        }
-        return null
-    }
-
-    private fun createRoom(roomName: String) {
-        rooms[roomName] = mutableMapOf()
-    }
-
-    private fun deleteRoom(roomName: String) {
-        rooms.remove(roomName)
-    }
-
-
 }
