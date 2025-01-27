@@ -1,45 +1,46 @@
 package com.example.server
 
+import com.example.models.ServerResponse
+import com.example.utils.formatChatMessage
+import com.example.utils.generateId
 import io.ktor.utils.io.*
 
 object ChatRoomManager {
-    //key - room name | value - username and client map
-    private val rooms = mutableMapOf<String, MutableMap<String, ByteWriteChannel>>()
+    // roomName -> set of session IDs
+    private val rooms = mutableMapOf<String, MutableSet<ClientHandler>>()
 
-    fun addClientToRoom(roomName: String, username: String, channel: ByteWriteChannel) {
-        if (rooms[roomName] == null) {
-            createRoom(roomName)
-        }
-        rooms[roomName]?.put(username, channel)
+
+    fun addClientToRoom(roomName: String, client: ClientHandler) {
+        val room = rooms.getOrPut(roomName) { mutableSetOf() }
+        room.add(client)
     }
 
-    fun removeClientFromRoom(roomName: String, username: String) {
-        rooms[roomName]?.remove(username)
-        if (rooms[roomName]?.isEmpty() == true) {
-            deleteRoom(roomName)
-        }
+    fun removeClientFromRoom(roomName: String, client: ClientHandler) {
+        rooms[roomName]?.remove(client)
     }
 
-    fun getClientsInRoom(roomName: String): Map<String, ByteWriteChannel>? {
-        return rooms[roomName]
-    }
-
-    fun getClientsFromUser(username: String):MutableMap<String, ByteWriteChannel>?{
-        for (room in rooms){
-            if (room.value.containsKey(username)){
-                return room.value
+    suspend fun broadcast(roomName: String, message: String, sender: ClientHandler? = null) {
+        rooms[roomName]?.forEach { client ->
+            if (client != sender) {
+                client.sendResponse(ServerResponse.ChatMessage(
+                    id = generateId(),
+                    sender = sender?.username ?: "server",
+                    room = roomName,
+                    message = message
+                ))
             }
         }
-        return null
+        //print in server if sender is a real user
+        if(sender != null){
+            val msg = formatChatMessage(sender.username!!, message, roomName)
+            println(msg)
+        }
+
     }
 
-    private fun createRoom(roomName: String) {
-        rooms[roomName] = mutableMapOf()
+    suspend fun broadcastToAllRooms(message: String, sender: ClientHandler? = null) {
+        rooms.keys.forEach { roomName ->
+            broadcast(roomName, message, sender)
+        }
     }
-
-    private fun deleteRoom(roomName: String) {
-        rooms.remove(roomName)
-    }
-
-
 }

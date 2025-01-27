@@ -3,6 +3,7 @@ package com.example.client
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
 import com.example.utils.asFlow
+import com.example.utils.formatChatMessage
 import com.example.utils.generateId
 import com.example.utils.getInput
 import io.ktor.network.selector.*
@@ -17,17 +18,14 @@ import kotlinx.serialization.encodeToString
 
 class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
-    private var clientUsername = ""
-
     //store responses by request id to be able to match them
-    private val pendingResponses = mutableMapOf<String, CompletableDeferred<ServerResponse>>()
+    private val pendingRequests = mutableMapOf<String, CompletableDeferred<ServerResponse>>()
     //incoming chat messages
-    private val incomingChatMessages = Channel<ServerResponse.IncomingChatMessage>()
+    private val incomingChatMessages = Channel<ServerResponse.ChatMessage>()
 
     private val clientScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private var isLoggedIn = false
-
 
     suspend fun startClient() {
         val selectorManager = SelectorManager(Dispatchers.IO)
@@ -47,7 +45,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             runMainMenuLoop(sendChannel)
 
             if(isLoggedIn) {
-                requestJoinChatRoom(sendChannel)
+                requestJoinRoom(sendChannel)
                 startChatSession(sendChannel)
             }
 
@@ -69,15 +67,16 @@ class ChatClient(private val host: String, private val port: Int, private val ti
 
     private suspend fun ServerResponse.handleServerResponse(receiveChannel: ByteReadChannel) {
         when (this) {
-            is ServerResponse.IncomingChatMessage -> {
+            is ServerResponse.ChatMessage -> {
                 //send chat message
                 incomingChatMessages.send(this)
             }
 
-            else -> {
+            is ServerResponse.Success,
+            is ServerResponse.Error -> {
                 //if response to a request, complete the request
-                pendingResponses[responseId]?.complete(this)
-                pendingResponses.remove(responseId)
+                pendingRequests[id]?.complete(this)
+                pendingRequests.remove(id)
             }
         }
     }
@@ -111,55 +110,43 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         }
     }
 
-    private suspend fun requestJoinChatRoom(sendChannel: ByteWriteChannel) {
-        val chatSelectString = """
-        Welcome! Please enter the name of the chat room you would like to join:
-        """.trimIndent()
-
-        val roomName = getInput(chatSelectString)
+    private suspend fun requestJoinRoom(sendChannel: ByteWriteChannel) {
+        val room = getInput("Please enter the name of the chat room you want to join: ")
         val requestId = generateId()
-        val request = ClientRequest.JoinChatRoom(requestId, clientUsername, roomName)
-        val response = request.sendAndAwaitResponse(sendChannel)
+        val request = ClientRequest.JoinRoom(requestId, room)
 
-        try {
-            if (response is ServerResponse.Success) {
-                println(response.message)
-            } else if (response is ServerResponse.Error) {
-                println(response.errorMessage)
-            }
-        } catch (e: TimeoutCancellationException) {
-            println("Join chat room failed: Server did not respond in time.")
+        val response = request.sendAndAwaitResponse(sendChannel)
+        when (response) {
+            is ServerResponse.Success -> println("Joined room: $room")
+            is ServerResponse.Error -> println("Failed to join room: ${response.message}")
+            else -> println("Unexpected response to join room.")
         }
     }
 
-    // asks the user for their username and password,
-    // sends a login request to the server,
-    // and prints the server's response
-    private suspend fun requestLogin(
-        sendChannel: ByteWriteChannel,
-    ) {
-        val username = getInput("Please enter your username: ")
-        val password = getInput("Please enter your password: ")
+    // send login request to server and handles the response
+    private suspend fun requestLogin(sendChannel: ByteWriteChannel) {
+        val enteredUsername = getInput("Username: ")
+        val enteredPassword = getInput("Password: ")
         val requestId = generateId()
-        val request = ClientRequest.Login(requestId, username, password)
+
+        val request = ClientRequest.Login(requestId, enteredUsername, enteredPassword)
         val response = request.sendAndAwaitResponse(sendChannel)
 
-        try {
-            if (response is ServerResponse.Success) {
-                clientUsername = username
+        when (response) {
+            is ServerResponse.Success -> {
                 isLoggedIn = true
-                println(response.message)
-            } else if (response is ServerResponse.Error) {
-                println(response.errorMessage)
+                println("Login successful: ${response.message}")
             }
-        } catch (e: TimeoutCancellationException) {
-            println("Login failed: Server did not respond in time.")
+            is ServerResponse.Error -> {
+                println("Login failed: ${response.message}")
+            }
+            else -> {
+                println("Unexpected response to login.")
+            }
         }
     }
 
-    // asks the user for a new username and password,
-    // sends a sign-up request to the server,
-    // and prints the server's response
+    // send signup request to server and handles the response
     private suspend fun requestSignUp(
         sendChannel: ByteWriteChannel,
     ) {
@@ -178,7 +165,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                     println(response.message)
                     println("Please log in with your new account.")
                 } else if (response is ServerResponse.Error) {
-                    println(response.errorMessage)
+                    println(response.message)
                 }
             } catch (e: TimeoutCancellationException) {
                 println("Signup failed: Server did not respond in time.")
@@ -195,7 +182,8 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                 println("Welcome to the chat! Type a message and press Enter to send.")
                 while (isActive) {
                     val serverMessage = incomingChatMessages.receive()
-                    println("${serverMessage.sender}: ${serverMessage.content}")
+                    val formattedMessage = formatChatMessage(serverMessage.sender, serverMessage.message, serverMessage.room)
+                    println(formattedMessage)
                 }
             }
             // send messages
@@ -203,7 +191,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                 while (isActive) {
                     val message = readlnOrNull() ?: continue
                     val requestId = generateId()
-                    val request = ClientRequest.OutgoingChatMessage(requestId, clientUsername, message)
+                    val request = ClientRequest.SendMessage(requestId, message)
                     request.send(sendChannel)
                 }
             }
@@ -214,7 +202,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     private suspend fun ClientRequest.sendAndAwaitResponse(sendChannel: ByteWriteChannel): ServerResponse {
         //create pending response
         val pendingResponse = CompletableDeferred<ServerResponse>()
-        pendingResponses[requestId] = pendingResponse
+        pendingRequests[id] = pendingResponse
 
         //send the request
         this.send(sendChannel)
