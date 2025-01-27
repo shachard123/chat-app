@@ -5,8 +5,11 @@ import com.example.models.User
 object UserManager {
 
     private val users = mutableListOf(
-        User("shachar5", "myStrongPass123"),
-        User("shachar2", "password")
+        User("shachar", "1234"),
+        User("shachar2", "1234"),
+        User("shachar3", "1234"),
+        User("shachar4", "1234"),
+
     )
 
     fun addUser(username: String, password: String) {
@@ -24,7 +27,7 @@ object UserManager {
         return realPassword == attemptedPassword
     }
 
-    fun checkUserExists(username: String): Boolean {
+    fun doesUserExist(username: String): Boolean {
         return users.any { it.username == username }
     }
 

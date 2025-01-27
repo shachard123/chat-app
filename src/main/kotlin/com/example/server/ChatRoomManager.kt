@@ -1,24 +1,46 @@
 package com.example.server
 
 import com.example.models.ServerResponse
+import com.example.utils.formatChatMessage
+import com.example.utils.generateId
 import io.ktor.utils.io.*
 
 object ChatRoomManager {
     // roomName -> set of session IDs
-    private val rooms = mutableMapOf<String, MutableSet<String>>()
+    private val rooms = mutableMapOf<String, MutableSet<ClientHandler>>()
 
-    fun addSessionToRoom(roomName: String, sessionId: String) {
-        rooms.computeIfAbsent(roomName) { mutableSetOf() }.add(sessionId)
+
+    fun addClientToRoom(roomName: String, client: ClientHandler) {
+        val room = rooms.getOrPut(roomName) { mutableSetOf() }
+        room.add(client)
     }
 
-    fun removeSessionFromRoom(roomName: String, sessionId: String) {
-        rooms[roomName]?.remove(sessionId)
-        if (rooms[roomName].isNullOrEmpty()) {
-            rooms.remove(roomName)
+    fun removeClientFromRoom(roomName: String, client: ClientHandler) {
+        rooms[roomName]?.remove(client)
+    }
+
+    suspend fun broadcast(roomName: String, message: String, sender: ClientHandler? = null) {
+        rooms[roomName]?.forEach { client ->
+            if (client != sender) {
+                client.sendResponse(ServerResponse.ChatMessage(
+                    id = generateId(),
+                    sender = sender?.username ?: "server",
+                    room = roomName,
+                    message = message
+                ))
+            }
         }
+        //print in server if sender is a real user
+        if(sender != null){
+            val msg = formatChatMessage(sender.username!!, message, roomName)
+            println(msg)
+        }
+
     }
 
-    fun getSessionsInRoom(roomName: String): Set<String> {
-        return rooms[roomName] ?: emptySet()
+    suspend fun broadcastToAllRooms(message: String, sender: ClientHandler? = null) {
+        rooms.keys.forEach { roomName ->
+            broadcast(roomName, message, sender)
+        }
     }
 }
