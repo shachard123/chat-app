@@ -2,11 +2,11 @@ package com.example.server
 
 import com.example.models.User
 import org.junit.jupiter.api.Assertions.*
-import kotlin.test.BeforeTest
-import kotlin.test.Test
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 
 class UserManagerTest {
-    @BeforeTest
+    @BeforeEach
     fun setup() {
         // Reset to initial state
         UserManager.apply {

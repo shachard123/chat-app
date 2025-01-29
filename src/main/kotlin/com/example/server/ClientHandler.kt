@@ -35,7 +35,7 @@ class ClientHandler(
         }
     }
 
-    private suspend fun handleRequest(request: ClientRequest) {
+    public suspend fun handleRequest(request: ClientRequest) {
         when (request) {
             is ClientRequest.Login -> handleLogin(request)
             is ClientRequest.SignUp -> handleSignUp(request)

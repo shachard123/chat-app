@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlin.system.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
+import org.jetbrains.annotations.VisibleForTesting
 
 class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
@@ -147,7 +148,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     // send signup request to server and handles the response
-    private suspend fun requestSignUp(
+    public suspend fun requestSignUp(
         sendChannel: ByteWriteChannel,
     ) {
         var isValidUsername = false
