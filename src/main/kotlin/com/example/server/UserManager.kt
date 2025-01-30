@@ -31,4 +31,12 @@ object UserManager {
         return users.any { it.username == username }
     }
 
+    fun clearUsers() {
+        users.clear()
+    }
+
+    fun addUsers(users: List<User>) {
+        this.users.addAll(users)
+    }
+
 }

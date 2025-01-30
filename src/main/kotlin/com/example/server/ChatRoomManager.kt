@@ -7,7 +7,7 @@ import io.ktor.utils.io.*
 
 object ChatRoomManager {
     // roomName -> set of session IDs
-    private val rooms = mutableMapOf<String, MutableSet<ClientHandler>>()
+    val rooms = mutableMapOf<String, MutableSet<ClientHandler>>()
 
 
     fun addClientToRoom(roomName: String, client: ClientHandler) {
@@ -42,5 +42,9 @@ object ChatRoomManager {
         rooms.keys.forEach { roomName ->
             broadcast(roomName, message, sender)
         }
+    }
+
+    fun clearRooms() {
+        rooms.clear()
     }
 }

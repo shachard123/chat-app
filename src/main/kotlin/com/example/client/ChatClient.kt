@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.map
 import kotlin.system.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
+import org.jetbrains.annotations.VisibleForTesting
 
 class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
@@ -38,7 +39,6 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         clientScope.launch {
             listenForServerResponses(receiveChannel)
         }
-
 
         // login and show chat
         clientScope.launch {
@@ -124,7 +124,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     // send login request to server and handles the response
-    private suspend fun requestLogin(sendChannel: ByteWriteChannel) {
+    suspend fun requestLogin(sendChannel: ByteWriteChannel) {
         val enteredUsername = getInput("Username: ")
         val enteredPassword = getInput("Password: ")
         val requestId = generateId()

@@ -22,7 +22,9 @@ repositories {
 
 tasks.test {
     useJUnitPlatform()
+
 }
+
 
 dependencies {
     implementation(libs.ktor.server.core)
@@ -30,9 +32,12 @@ dependencies {
     implementation(libs.logback.classic)
     implementation(libs.ktor.server.config.yaml)
     testImplementation(libs.ktor.server.test.host)
-    testImplementation(libs.kotlin.test.junit)
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5:1.9.10") // Use kotlin-test-junit5 explicitly
+    testImplementation("org.junit.jupiter:junit-jupiter:5.9.3")
+    testImplementation("io.mockk:mockk:1.13.5")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.6.4")
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-network-tls:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
-    testImplementation(kotlin("test"))
 }
+
