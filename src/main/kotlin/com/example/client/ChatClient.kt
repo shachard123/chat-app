@@ -40,7 +40,6 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             listenForServerResponses(receiveChannel)
         }
 
-
         // login and show chat
         clientScope.launch {
             runMainMenuLoop(sendChannel)
@@ -125,7 +124,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     // send login request to server and handles the response
-    private suspend fun requestLogin(sendChannel: ByteWriteChannel) {
+    suspend fun requestLogin(sendChannel: ByteWriteChannel) {
         val enteredUsername = getInput("Username: ")
         val enteredPassword = getInput("Password: ")
         val requestId = generateId()
@@ -148,7 +147,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     // send signup request to server and handles the response
-    public suspend fun requestSignUp(
+    private suspend fun requestSignUp(
         sendChannel: ByteWriteChannel,
     ) {
         var isValidUsername = false

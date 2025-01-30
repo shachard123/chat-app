@@ -44,7 +44,6 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    // Check that it's indeed a success response
                     assertTrue(response is ServerResponse.Success)
                 }
             )
@@ -140,8 +139,6 @@ class ClientHandlerTest {
         spiedClientHandler.username = "validUser"
         spiedClientHandler.currentRoom = "room1"
         val request = ClientRequest.SendMessage("1", "Hello!")
-        //lets the function run without actually sending a message
-        //justRun { mockChatRoomManager.broadcast("room1", "Hello!", spiedClientHandler) }
 
         spiedClientHandler.handleRequest(request)
 

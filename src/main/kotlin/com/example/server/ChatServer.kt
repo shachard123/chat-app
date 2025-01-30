@@ -26,6 +26,7 @@ class ChatServer(private val host: String, private val port: Int) {
         serverScope.coroutineContext.job.join()
     }
 
+    //TODO: separate into functions
     private suspend fun listenForServerConsole() {
         while (serverScope.isActive) {
             val serverInput = readlnOrNull() ?: ""

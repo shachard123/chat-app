@@ -21,7 +21,6 @@ class ChatClientTest {
 
     @BeforeEach
     fun setUp() = runBlocking {
-        // Start the server
         server = ChatServer(testHost, testPort)
         serverScope.launch { server.startServer() }
 
@@ -31,30 +30,20 @@ class ChatClientTest {
 
     @AfterEach
     fun tearDown() {
-        // Stop the server and cleanup resources
         serverScope.cancel()
     }
 
 //    @Test
-//    fun `client can login and join a room`() = runTest {
-//        // Arrange: Start the client
+//    fun `can client login`() = runTest {
 //        client = ChatClient(testHost, testPort, timeout)
 //        val clientJob = launch { client.startClient() }
 //
-//        // Simulate user interaction
-//        val signUpJob = launch {
-//            delay(300) // Simulate delay for server to fully start
-//            client.requestSignUp("testUser", "testPassword")
+//        val signInJob = launch {
+//            delay(300) // Delay until start
+//            client.requestLogin()
 //        }
 //
-//        val joinRoomJob = launch {
-//            delay(500) // Ensure signup completes before joining room
-//            client.requestJoinRoom("testRoom")
-//        }
-//
-//        // Wait for tasks to complete
-//        signUpJob.join()
-//        joinRoomJob.join()
+//        signInJob.join()
 //
 //        // Assert: Validate client state
 //        assertTrue(client.isLoggedIn, "Client should be logged in after signup.")
