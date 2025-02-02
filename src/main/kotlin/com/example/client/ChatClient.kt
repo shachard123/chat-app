@@ -62,11 +62,15 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         receiveChannel.asFlow()
             .map { Json.decodeFromString<ServerResponse>(it) }
             .collect { serverResponse ->
-                when (serverResponse) {
-                    is ServerResponse.ChatMessage -> incomingChatMessages.send(serverResponse)
-                    is ServerResponse.Success,
-                    is ServerResponse.Error -> requestManager.completeResponse(serverResponse)
+                if(serverResponse is ServerResponse.ChatMessage){
+                    incomingChatMessages.send(serverResponse)
                 }
+                requestManager.completeResponse(serverResponse)
+//                when (serverResponse) {
+//                    is ServerResponse.ChatMessage -> incomingChatMessages.send(serverResponse)
+//                    is ServerResponse.Success,
+//                    is ServerResponse.Error -> requestManager.completeResponse(serverResponse)
+//                }
             }
     }
 
