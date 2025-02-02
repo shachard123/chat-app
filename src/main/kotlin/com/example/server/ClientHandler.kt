@@ -127,6 +127,7 @@ class ClientHandler(
             )
             return
         }
+
         // error if not in a room
         if (currentRoom == null) {
             sendResponse(
@@ -143,6 +144,13 @@ class ClientHandler(
             roomName = currentRoom!!,
             message = request.message,
             sender = this
+        )
+
+        sendResponse(
+            ServerResponse.Success(
+                id = request.id,
+                message = "Message sent."
+            )
         )
     }
 
