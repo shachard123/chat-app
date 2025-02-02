@@ -24,9 +24,7 @@ class RequestManager(private val sendChannel: ByteWriteChannel, private val time
                 pendingResponse.await()
             }
         } catch (e: TimeoutCancellationException) {
-            // Clean up the pending request
             pendingRequests.remove(request.id)
-            // Return an error response indicating a timeout.
             ServerResponse.Error(request.id, "Request timed out.")
         }
     }
