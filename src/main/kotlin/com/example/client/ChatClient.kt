@@ -15,7 +15,6 @@ import kotlinx.coroutines.flow.map
 import kotlin.system.*
 import kotlinx.serialization.json.*
 import kotlinx.serialization.encodeToString
-import org.jetbrains.annotations.VisibleForTesting
 
 class ChatClient(private val host: String, private val port: Int, private val timeout: Long) {
 
@@ -45,7 +44,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
 
             if (isLoggedIn) {
                 requestJoinRoom(requestManager)
-                startChatSession(sendChannel)
+                startChatSession(requestManager)
             }
 
 
@@ -66,11 +65,6 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                     incomingChatMessages.send(serverResponse)
                 }
                 requestManager.completeResponse(serverResponse)
-//                when (serverResponse) {
-//                    is ServerResponse.ChatMessage -> incomingChatMessages.send(serverResponse)
-//                    is ServerResponse.Success,
-//                    is ServerResponse.Error -> requestManager.completeResponse(serverResponse)
-//                }
             }
     }
 
@@ -149,7 +143,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     }
 
     private suspend fun startChatSession(
-        sendChannel: ByteWriteChannel
+        requestManager: RequestManager
     ) {
         coroutineScope {
             // receive messages
@@ -168,15 +162,9 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                     val message = readlnOrNull() ?: continue
                     val requestId = generateId()
                     val request = ClientRequest.SendMessage(requestId, message)
-                    request.send(sendChannel)
+                    requestManager.sendRequest(request)
                 }
             }
         }
-    }
-
-    private suspend fun ClientRequest.send(sendChannel: ByteWriteChannel) {
-        //send the request
-        val jsonString = Json.encodeToString(this) + "\n"
-        sendChannel.writeStringUtf8(jsonString)
     }
 }
