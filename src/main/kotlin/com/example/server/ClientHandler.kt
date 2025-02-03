@@ -10,7 +10,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
 
-
 class ClientHandler(
     private val socket: Socket,
     private val userManager: UserManager,
@@ -36,7 +35,7 @@ class ClientHandler(
         }
     }
 
-    public suspend fun handleRequest(request: ClientRequest) {
+    suspend fun handleRequest(request: ClientRequest) {
         when (request) {
             is ClientRequest.Login -> handleLogin(request)
             is ClientRequest.SignUp -> handleSignUp(request)
@@ -46,137 +45,74 @@ class ClientHandler(
     }
 
     private suspend fun handleLogin(request: ClientRequest.Login) {
+        if (userManager.isUserConnected(request.username)) {
+            sendErrorResponse(request.id, "User is already connected.")
+            return
+        }
+
         if (userManager.areCredentialsValid(request.username, request.password)) {
             username = request.username
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.SUCCESS,
-                    message = "Login successful."
-                )
-            )
-
+            userManager.markUserAsConnected(username!!)
+            sendSuccessResponse(request.id, "Login successful.")
         } else {
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.ERROR,
-                    message = "Login failed - invalid credentials."
-                )
-            )
-
+            sendErrorResponse(request.id, "Login failed - invalid credentials.")
         }
     }
 
     private suspend fun handleSignUp(request: ClientRequest.SignUp) {
         if (!userManager.doesUserExist(request.username)) {
             userManager.addUser(request.username, request.password)
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.SUCCESS,
-                    message = "Signup successful."
-                )
-            )
+            sendSuccessResponse(request.id, "Signup successful.")
         } else {
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.ERROR,
-                    message = "Signup failed - user already exists."
-                )
-            )
+            sendErrorResponse(request.id, "Signup failed - user already exists.")
         }
     }
 
+    private fun isLoggedIn() = !username.isNullOrEmpty()
+
     private suspend fun handleJoinRoom(request: ClientRequest.JoinRoom) {
-        // check if logged in
-        if (username == null) {
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.ERROR,
-                    message = "You must be logged in to join a room."
-                )
-            )
+        if (!isLoggedIn()) {
+            sendErrorResponse(request.id, "You must be logged in to join a room.")
             return
         }
 
-        //If it has room already remove from room
-        currentRoom?.let {
-            chatRoomManager.removeClientFromRoom(it, this)
-        }
+        currentRoom?.let { chatRoomManager.removeClientFromRoom(it, this) }
 
-        // Join the new room
         currentRoom = request.roomName
         chatRoomManager.addClientToRoom(request.roomName, this)
 
-        sendResponse(
-            ServerResponse.Response(
-                id = request.id,
-                status = Status.SUCCESS,
-                message = "Joined room: ${request.roomName}"
-            )
-        )
+        sendSuccessResponse(request.id, "Joined room: ${request.roomName}")
     }
 
-    /**
-     * Handle an outgoing chat message from the client.
-     */
     private suspend fun handleSendMessage(request: ClientRequest.SendMessage) {
-        // error if not logged in
-        if (username == null) {
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.ERROR,
-                    message = "You must be logged in to send messages."
-                )
-            )
+        if (!isLoggedIn()) {
+            sendErrorResponse(request.id, "You must be logged in to send messages.")
             return
         }
 
-        // error if not in a room
-        if (currentRoom == null) {
-            sendResponse(
-                ServerResponse.Response(
-                    id = request.id,
-                    status = Status.ERROR,
-                    message = "You must be in a room to send messages."
-                )
-            )
-            return
-        }
-
-        // broadcast the message
-        chatRoomManager.broadcast(
-            roomName = currentRoom!!,
-            message = request.message,
-            sender = this
-        )
-
-        sendResponse(
-            ServerResponse.Response(
-                id = request.id,
-                status = Status.SUCCESS,
-                message = "Message sent."
-            )
-        )
+        currentRoom?.let { room ->
+            chatRoomManager.broadcast(room, request.message, this)
+            sendSuccessResponse(request.id, "Message sent.")
+        } ?: sendErrorResponse(request.id, "You must be in a room to send messages.")
     }
 
-    suspend fun sendResponse(response: ServerResponse) {
+    private suspend fun sendResponse(response: ServerResponse) {
         val jsonString = Json.encodeToString(response)
         sendChannel.writeStringUtf8(jsonString + "\n")
     }
 
+    private suspend fun sendSuccessResponse(id: String, message: String) {
+        sendResponse(ServerResponse.Response(id, Status.SUCCESS, message))
+    }
+
+    private suspend fun sendErrorResponse(id: String, message: String) {
+        sendResponse(ServerResponse.Response(id, Status.ERROR, message))
+    }
+
     private fun handleDisconnect() {
-        //clean up
         currentRoom?.let {
             chatRoomManager.removeClientFromRoom(it, this)
         }
+        username?.let { userManager.markUserAsDisconnected(it) }
     }
-
 }
-
-
-

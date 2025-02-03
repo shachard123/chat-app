@@ -25,21 +25,31 @@ class ChatServer(private val host: String, private val port: Int) {
         serverScope.coroutineContext.job.join()
     }
 
-    //TODO: separate into functions
     private suspend fun listenForServerConsole() {
         while (serverScope.isActive) {
-            val serverInput = readlnOrNull() ?: ""
-            if (serverInput.startsWith("/")) {
-                val withoutSlash = serverInput.drop(1).trim()
-                val parts = withoutSlash.split(" ")
-                val room = parts[0]
-                val message = parts.drop(1).joinToString(" ")
+            val input = readlnOrNull() ?: continue
+            val (room, message) = parseServerInput(input)
+
+            if (room != null) {
                 ChatRoomManager.broadcast(room, message)
-                println("sent message to room $room")
+                println("Sent message to room $room")
             } else {
-                ChatRoomManager.broadcastToAllRooms(serverInput)
-                println("sent message to all rooms")
+                ChatRoomManager.broadcastToAllRooms(message)
+                println("Sent message to all rooms")
             }
+        }
+    }
+
+
+    private fun parseServerInput(input: String): Pair<String?, String> {
+        return if (input.startsWith("/")) {
+            val withoutSlash = input.drop(1).trim()
+            val parts = withoutSlash.split(" ")
+            val room = parts.getOrNull(0)
+            val message = parts.drop(1).joinToString(" ")
+            Pair(room, message)
+        } else {
+            Pair(null, input) // No room specified, it's a broadcast
         }
     }
 
@@ -50,12 +60,11 @@ class ChatServer(private val host: String, private val port: Int) {
 
             // Handle each client in a separate coroutine
             serverScope.launch() {
-                val handler = ClientHandler(
+                ClientHandler(
                     socket = socket,
                     userManager = UserManager,       // or pass references
                     chatRoomManager = ChatRoomManager
-                )
-                handler.run()  // run() is a suspend function that reads requests
+                ).run()
             }
         }
     }
