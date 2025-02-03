@@ -2,6 +2,7 @@ package com.example.client
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.models.Status
 import io.ktor.utils.io.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
@@ -25,7 +26,7 @@ class RequestManager(private val sendChannel: ByteWriteChannel, private val time
             }
         } catch (e: TimeoutCancellationException) {
             pendingRequests.remove(request.id)
-            ServerResponse.Error(request.id, "Request timed out.")
+            ServerResponse.Response(request.id, Status.ERROR ,"Request timed out.")
         }
     }
 

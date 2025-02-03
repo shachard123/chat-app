@@ -2,6 +2,7 @@ package com.example.server
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.models.Status
 import com.example.utils.asFlow
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
@@ -48,16 +49,18 @@ class ClientHandler(
         if (userManager.areCredentialsValid(request.username, request.password)) {
             username = request.username
             sendResponse(
-                ServerResponse.Success(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.SUCCESS,
                     message = "Login successful."
                 )
             )
 
         } else {
             sendResponse(
-                ServerResponse.Error(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.ERROR,
                     message = "Login failed - invalid credentials."
                 )
             )
@@ -69,15 +72,17 @@ class ClientHandler(
         if (!userManager.doesUserExist(request.username)) {
             userManager.addUser(request.username, request.password)
             sendResponse(
-                ServerResponse.Success(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.SUCCESS,
                     message = "Signup successful."
                 )
             )
         } else {
             sendResponse(
-                ServerResponse.Error(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.ERROR,
                     message = "Signup failed - user already exists."
                 )
             )
@@ -88,15 +93,16 @@ class ClientHandler(
         // check if logged in
         if (username == null) {
             sendResponse(
-                ServerResponse.Error(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.ERROR,
                     message = "You must be logged in to join a room."
                 )
             )
             return
         }
 
-        // if has room already remove from room
+        //If it has room already remove from room
         currentRoom?.let {
             chatRoomManager.removeClientFromRoom(it, this)
         }
@@ -106,9 +112,10 @@ class ClientHandler(
         chatRoomManager.addClientToRoom(request.roomName, this)
 
         sendResponse(
-            ServerResponse.Success(
+            ServerResponse.Response(
                 id = request.id,
-                message = "Joined room '${request.roomName}'."
+                status = Status.SUCCESS,
+                message = "Joined room: ${request.roomName}"
             )
         )
     }
@@ -120,8 +127,9 @@ class ClientHandler(
         // error if not logged in
         if (username == null) {
             sendResponse(
-                ServerResponse.Error(
+                ServerResponse.Response(
                     id = request.id,
+                    status = Status.ERROR,
                     message = "You must be logged in to send messages."
                 )
             )
@@ -131,9 +139,10 @@ class ClientHandler(
         // error if not in a room
         if (currentRoom == null) {
             sendResponse(
-                ServerResponse.Error(
+                ServerResponse.Response(
                     id = request.id,
-                    message = "You must join a room to send messages."
+                    status = Status.ERROR,
+                    message = "You must be in a room to send messages."
                 )
             )
             return
@@ -147,8 +156,9 @@ class ClientHandler(
         )
 
         sendResponse(
-            ServerResponse.Success(
+            ServerResponse.Response(
                 id = request.id,
+                status = Status.SUCCESS,
                 message = "Message sent."
             )
         )

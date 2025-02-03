@@ -7,14 +7,9 @@ sealed class ServerResponse {
     abstract val id: String
 
     @Serializable
-    data class Success(
+    data class Response(
         override val id: String,
-        val message: String
-    ) : ServerResponse()
-
-    @Serializable
-    data class Error(
-        override val id: String,
+        val status: Status,
         val message: String
     ) : ServerResponse()
 
@@ -25,5 +20,9 @@ sealed class ServerResponse {
         val room: String,
         val message: String
     ) : ServerResponse()
+}
 
+enum class Status {
+    SUCCESS,
+    ERROR
 }

@@ -2,6 +2,7 @@ package com.example.server
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.models.Status
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
 import io.mockk.*
@@ -44,7 +45,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Success)
+                    assertTrue((response as ServerResponse.Response).status == Status.SUCCESS)
                 }
             )
         }
@@ -60,7 +61,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Error)
+                    assertTrue((response as ServerResponse.Response).status == Status.ERROR)
                 }
             )
         }
@@ -77,7 +78,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Success)
+                    assertTrue((response as ServerResponse.Response).status == Status.SUCCESS)
                 }
             )
         }
@@ -93,7 +94,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Error)
+                    assertTrue((response as ServerResponse.Response).status == Status.ERROR)
                 }
             )
         }
@@ -113,7 +114,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Success)
+                    assertTrue((response as ServerResponse.Response).status == Status.SUCCESS)
                 }
             )
         }
@@ -128,7 +129,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Error)
+                    assertTrue((response as ServerResponse.Response).status == Status.ERROR)
                 }
             )
         }
@@ -157,7 +158,7 @@ class ClientHandlerTest {
         coVerify {
             spiedClientHandler.sendResponse(
                 withArg { response ->
-                    assertTrue(response is ServerResponse.Error)
+                    assertTrue((response as ServerResponse.Response).status == Status.ERROR)
                 }
             )
         }

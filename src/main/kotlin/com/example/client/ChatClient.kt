@@ -2,6 +2,7 @@ package com.example.client
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
+import com.example.models.Status
 import com.example.utils.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
@@ -109,7 +110,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         val response = requestManager.sendRequest(request)
         //handle response
         response.printResponse()
-        isLoggedIn = response is ServerResponse.Success
+        isLoggedIn = response is ServerResponse.Response && response.status == Status.SUCCESS
 
     }
 
@@ -125,7 +126,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             val response = requestManager.sendRequest(request)
             //handle response
             response.printResponse()
-            isValidUsername = response is ServerResponse.Success
+            isValidUsername = response is ServerResponse.Response && response.status == Status.SUCCESS
         }
     }
 
@@ -157,8 +158,12 @@ class ChatClient(private val host: String, private val port: Int, private val ti
 
     private fun ServerResponse.printResponse() {
         when (this) {
-            is ServerResponse.Success -> println("✅ $message")
-            is ServerResponse.Error -> println("❌ $message")
+            is ServerResponse.Response -> {
+                when (status) {
+                    Status.SUCCESS -> println("✅ $message")
+                    Status.ERROR -> println("❌ $message")
+                }
+            }
             else -> println("⚠️ Unexpected server response.")
         }
     }
