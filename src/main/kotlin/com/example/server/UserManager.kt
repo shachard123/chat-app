@@ -36,8 +36,8 @@ object UserManager {
         connectedUsers.clear() // Also clear connected users
     }
 
-    fun addUsers(users: List<User>) {
-        this.users.addAll(users)
+    fun addUsers(newUsers: List<User>) {
+        this.users.addAll(newUsers)
     }
 
     fun isUserConnected(username: String): Boolean {

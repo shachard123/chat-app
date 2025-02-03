@@ -96,7 +96,7 @@ class ClientHandler(
         } ?: sendErrorResponse(request.id, "You must be in a room to send messages.")
     }
 
-    private suspend fun sendResponse(response: ServerResponse) {
+    suspend fun sendResponse(response: ServerResponse) {
         val jsonString = Json.encodeToString(response)
         sendChannel.writeStringUtf8(jsonString + "\n")
     }
