@@ -5,9 +5,5 @@ import kotlinx.coroutines.runBlocking
 
 
 suspend fun main() {
-    runBlocking {
-        val client = ChatClient(Configuration.HOST, Configuration.PORT, Configuration.TIMEOUT)
-        client.startClient()
-    }
-
+    ChatClient(Configuration.HOST, Configuration.PORT, Configuration.TIMEOUT).startClient()
 }

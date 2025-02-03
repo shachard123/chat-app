@@ -4,10 +4,6 @@ import com.example.Configuration
 import kotlinx.coroutines.*
 
 
-fun main() {
-    runBlocking {
-        val client = ChatServer(Configuration.HOST, Configuration.PORT)
-        client.startServer()
-
-    }
+suspend fun main() {
+    ChatServer(Configuration.HOST, Configuration.PORT).startServer()
 }
