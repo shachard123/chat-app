@@ -1,5 +1,6 @@
 package com.example.server
 
+import com.example.utils.initializeServerSocket
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import kotlinx.coroutines.*
@@ -9,9 +10,7 @@ class ChatServer(private val host: String, private val port: Int) {
     private val serverScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     suspend fun startServer() {
-        val selectorManager = SelectorManager(Dispatchers.IO)
-        val serverSocket = aSocket(selectorManager).tcp().bind(host, port)
-
+        val serverSocket = initializeServerSocket(host, port)
         println("Server is listening at ${serverSocket.localAddress}")
 
         serverScope.launch {

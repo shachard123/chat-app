@@ -2,10 +2,7 @@ package com.example.client
 
 import com.example.models.ClientRequest
 import com.example.models.ServerResponse
-import com.example.utils.asFlow
-import com.example.utils.formatChatMessage
-import com.example.utils.generateId
-import com.example.utils.getInput
+import com.example.utils.*
 import io.ktor.network.selector.*
 import io.ktor.network.sockets.*
 import io.ktor.utils.io.*
@@ -25,11 +22,7 @@ class ChatClient(private val host: String, private val port: Int, private val ti
     private var isLoggedIn = false
 
     suspend fun startClient() {
-        val selectorManager = SelectorManager(Dispatchers.IO)
-        val clientSocket = aSocket(selectorManager).tcp().connect(host, port)
-
-        val sendChannel = clientSocket.openWriteChannel(autoFlush = true)
-        val receiveChannel = clientSocket.openReadChannel()
+        val (sendChannel, receiveChannel) = initializeClientSocket(host,port)
 
         val requestManager = RequestManager(sendChannel, timeout)
 
@@ -58,14 +51,19 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         receiveChannel: ByteReadChannel,
         requestManager: RequestManager
     ) {
-        receiveChannel.asFlow()
-            .map { Json.decodeFromString<ServerResponse>(it) }
-            .collect { serverResponse ->
-                if(serverResponse is ServerResponse.ChatMessage){
-                    incomingChatMessages.send(serverResponse)
+        try {
+            receiveChannel.asFlow()
+                .map { Json.decodeFromString<ServerResponse>(it) }
+                .collect { serverResponse ->
+                    if (serverResponse is ServerResponse.ChatMessage) {
+                        incomingChatMessages.send(serverResponse)
+                    }
+                    requestManager.completeResponse(serverResponse)
                 }
-                requestManager.completeResponse(serverResponse)
-            }
+        } catch (e: Exception) {
+            println("Server disconnected: $e")
+            clientScope.cancel()
+        }
     }
 
     private suspend fun runMainMenuLoop(requestManager: RequestManager) {
@@ -83,10 +81,10 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         """.trimIndent()
 
         while (!isLoggedIn && clientScope.isActive) {
-            when (val option = getInput(menuString)) {
-                "${MenuOption.LOGIN.code}" -> requestLogin(requestManager)
-                "${MenuOption.SIGN_UP.code}" -> requestSignUp(requestManager)
-                "${MenuOption.EXIT.code}" -> exitProcess(0)
+            when (getInput(menuString).toInt()) {
+                MenuOption.LOGIN.code -> requestLogin(requestManager)
+                MenuOption.SIGN_UP.code -> requestSignUp(requestManager)
+                MenuOption.EXIT.code -> exitProcess(0)
                 else -> println("Invalid option, please try again.")
             }
         }
@@ -97,11 +95,8 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         val requestId = generateId()
         val request = ClientRequest.JoinRoom(requestId, room)
 
-        when (val response = requestManager.sendRequest(request)) {
-            is ServerResponse.Success -> println("Joined room: $room")
-            is ServerResponse.Error -> println("Failed to join room: ${response.message}")
-            else -> println("Unexpected response to join room.")
-        }
+        val response = requestManager.sendRequest(request)
+        response.printResponse()
     }
 
     // send login request to server and handles the response
@@ -109,16 +104,13 @@ class ChatClient(private val host: String, private val port: Int, private val ti
         val username = getInput("Username: ")
         val password = getInput("Password: ")
         val requestId = generateId()
+        //create and send request
         val request = ClientRequest.Login(requestId, username, password)
-        when (val response = requestManager.sendRequest(request)) {
-            is ServerResponse.Success -> {
-                isLoggedIn = true
-                println("Login successful: ${response.message}")
-            }
+        val response = requestManager.sendRequest(request)
+        //handle response
+        response.printResponse()
+        isLoggedIn = response is ServerResponse.Success
 
-            is ServerResponse.Error -> println("Login failed: ${response.message}")
-            else -> println("Unexpected response to login.")
-        }
     }
 
     // send signup request to server and handles the response
@@ -128,17 +120,12 @@ class ChatClient(private val host: String, private val port: Int, private val ti
             val username = getInput("Please enter a username: ")
             val password = getInput("Please enter a password: ")
             val requestId = generateId()
+            //create and send request
             val request = ClientRequest.SignUp(requestId, username, password)
-            when (val response = requestManager.sendRequest(request)) {
-                is ServerResponse.Success -> {
-                    isValidUsername = true
-                    println(response.message)
-                    println("Please log in with your new account.")
-                }
-
-                is ServerResponse.Error -> println(response.message)
-                else -> println("Unexpected response to sign up.")
-            }
+            val response = requestManager.sendRequest(request)
+            //handle response
+            response.printResponse()
+            isValidUsername = response is ServerResponse.Success
         }
     }
 
@@ -165,6 +152,14 @@ class ChatClient(private val host: String, private val port: Int, private val ti
                     requestManager.sendRequest(request)
                 }
             }
+        }
+    }
+
+    private fun ServerResponse.printResponse() {
+        when (this) {
+            is ServerResponse.Success -> println("✅ $message")
+            is ServerResponse.Error -> println("❌ $message")
+            else -> println("⚠️ Unexpected server response.")
         }
     }
 }
