@@ -19,22 +19,23 @@ object ChatRoomManager {
         rooms[roomName]?.remove(client)
     }
 
-    suspend fun broadcast(roomName: String, message: String, sender: ClientHandler? = null) {
+    suspend fun broadcast(roomName: String, message: String, sendingClient: ClientHandler? = null) {
         rooms[roomName]?.forEach { client ->
-            if (client != sender) {
+            if (client != sendingClient) {
                 client.sendResponse(ServerResponse.ChatMessage(
                     id = generateId(),
-                    sender = sender?.username ?: "server",
+                    sender = sendingClient?.getUserName() ?: "server",
                     room = roomName,
                     message = message
                 ))
             }
         }
         //print in server if sender is a real user
-        if(sender != null){
-            val msg = formatChatMessage(sender.username!!, message, roomName)
+        sendingClient?.getUserName()?.let { username ->
+            val msg = formatChatMessage(username, message, roomName)
             println(msg)
         }
+
 
     }
 
