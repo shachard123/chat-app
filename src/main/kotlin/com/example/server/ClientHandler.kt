@@ -9,6 +9,7 @@ import io.ktor.utils.io.*
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.encodeToString
+import org.bson.types.ObjectId
 
 class ClientHandler(
     private val socket: Socket,
@@ -18,8 +19,8 @@ class ClientHandler(
     private val receiveChannel = socket.openReadChannel()
     private val sendChannel = socket.openWriteChannel(autoFlush = true)
 
-    var username: String? = null
-    var currentRoom: String? = null
+    private var userId: ObjectId? = null
+    private var currentRoom: String? = null
 
     suspend fun run() {
         try {
@@ -45,14 +46,20 @@ class ClientHandler(
     }
 
     private suspend fun handleLogin(request: ClientRequest.Login) {
-        if (userManager.isUserConnected(request.username)) {
+        val user = userManager.getUserByUsername(request.username)
+        if (user == null) {
+            sendErrorResponse(request.id, "Login failed - user not found.")
+            return
+        }
+
+        if (userManager.isUserConnected(user._id)) {
             sendErrorResponse(request.id, "User is already connected.")
             return
         }
 
         if (userManager.areCredentialsValid(request.username, request.password)) {
-            username = request.username
-            userManager.markUserAsConnected(username!!)
+            userId = user._id
+            userManager.markUserAsConnected(user._id)
             sendSuccessResponse(request.id, "Login successful.")
         } else {
             sendErrorResponse(request.id, "Login failed - invalid credentials.")
@@ -68,7 +75,7 @@ class ClientHandler(
         }
     }
 
-    private fun isLoggedIn() = !username.isNullOrEmpty()
+    private fun isLoggedIn() = userId != null
 
     private suspend fun handleJoinRoom(request: ClientRequest.JoinRoom) {
         if (!isLoggedIn()) {
@@ -113,6 +120,10 @@ class ClientHandler(
         currentRoom?.let {
             chatRoomManager.removeClientFromRoom(it, this)
         }
-        username?.let { userManager.markUserAsDisconnected(it) }
+        userId?.let { userManager.markUserAsDisconnected(it) }
+    }
+
+    public fun getUserName(): String? {
+        return userManager.getUserById(userId!!)?.username
     }
 }

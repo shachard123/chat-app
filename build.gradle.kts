@@ -39,5 +39,7 @@ dependencies {
     implementation("io.ktor:ktor-network:$ktorVersion")
     implementation("io.ktor:ktor-network-tls:$ktorVersion")
     implementation("io.ktor:ktor-serialization-kotlinx-json:$ktorVersion")
+
+    implementation("org.litote.kmongo:kmongo:4.9.0")
 }
 
